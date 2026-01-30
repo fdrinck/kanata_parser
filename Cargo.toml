@@ -1,0 +1,19 @@
+[package]
+name = "kanata"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+memchr = "2.7.6"
+
+[dev-dependencies]
+criterion = "0.8.1"
+glob = "0.3.3"
+insta = "1.46.1"
+
+[[bench]]
+name = "parser"
+harness = false
+
+[profile.bench]
+debug = true

@@ -1,0 +1,19 @@
+---
+source: src/lib.rs
+expression: out
+---
+Kanata version=4
+Cycle =216
+Instr file=0 sim=0 thread=0
+Log id=0 kind=left text="12000d918 iBC(r17)	    "
+StartStage id=0 lane=0 name=F	
+Cycle +1
+StartStage id=0 lane=0 name=X	
+Instr file=1 sim=1 thread=0
+Log id=1 kind=left text="12000d91c r4 = iALU(r3, r2)	"
+StartStage id=1 lane=0 name=F	
+Cycle +1
+Retire id=0 rid=0 kind=retire
+StartStage id=1 lane=0 name=X	
+Cycle +1
+Retire id=1 rid=1 kind=flush
