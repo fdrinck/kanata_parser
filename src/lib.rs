@@ -29,7 +29,6 @@ pub enum LogKind {
 impl TryFrom<u8> for LogKind {
     type Error = ParseErrorKind;
 
-    #[inline]
     fn try_from(b: u8) -> Result<Self, Self::Error> {
         match b {
             b'0' => Ok(LogKind::LeftPane),
@@ -50,7 +49,6 @@ pub enum RetireKind {
 impl TryFrom<u8> for RetireKind {
     type Error = ParseErrorKind;
 
-    #[inline]
     fn try_from(b: u8) -> Result<Self, Self::Error> {
         match b {
             b'0' => Ok(RetireKind::Retire),
@@ -69,7 +67,6 @@ pub enum DepKind {
 impl TryFrom<u8> for DepKind {
     type Error = ParseErrorKind;
 
-    #[inline]
     fn try_from(b: u8) -> Result<Self, Self::Error> {
         match b {
             b'0' => Ok(DepKind::WakeUp),
@@ -82,18 +79,15 @@ impl TryFrom<u8> for DepKind {
 pub struct StrRef(u64);
 
 impl StrRef {
-    #[inline]
     pub fn new(offset: u64, len: u16) -> Self {
         Self((offset << 16) | len as u64)
     }
 
-    #[inline]
     pub fn offset(self) -> u64 {
         self.0 >> 16
     }
 
     #[allow(clippy::len_without_is_empty)]
-    #[inline]
     pub fn len(self) -> u16 {
         self.0 as u16
     }
@@ -145,7 +139,6 @@ impl<'a> Parser<'a> {
         Self { input, pos: 0 }
     }
 
-    #[inline]
     fn rest(&self) -> &'a [u8] {
         &self.input[self.pos..]
     }
@@ -157,22 +150,18 @@ impl<'a> Parser<'a> {
         }
     }
 
-    #[inline]
     fn advance(&mut self, n: usize) {
         self.pos += n;
     }
 
-    #[inline]
     fn bump(&mut self) {
         self.advance(1);
     }
 
-    #[inline]
     fn current(&mut self) -> Option<u8> {
         self.rest().first().copied()
     }
 
-    #[inline]
     fn skip_line(&mut self) {
         let rest = self.rest();
         if rest.is_empty() {
@@ -418,7 +407,6 @@ mod tests {
             }
         }
 
-        #[inline]
         fn strref(&self, s: StrRef) -> &'a [u8] {
             let off = s.offset() as usize;
             let len = s.len() as usize;
