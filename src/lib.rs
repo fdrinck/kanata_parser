@@ -147,6 +147,11 @@ impl<'a> Parser<'a> {
     }
 
     #[inline]
+    fn bump(&mut self) {
+        self.consume(1);
+    }
+
+    #[inline]
     fn current(&mut self) -> u8 {
         self.input[self.pos]
     }
@@ -335,11 +340,6 @@ impl<'a> Parser<'a> {
             producer_id: p,
             kind,
         })
-    }
-
-    #[inline]
-    fn bump(&mut self) {
-        self.consume(1);
     }
 }
 
