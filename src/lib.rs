@@ -3,6 +3,7 @@ use std::convert::TryFrom;
 
 #[derive(Debug)]
 pub enum ParseError {
+    InvalidHeader,
     InvalidLogKind,
     InvalidRetireKind,
     InvalidDepKind,
@@ -264,7 +265,7 @@ impl<'a> Parser<'a> {
     fn parse_header(&mut self) -> Result<Command, ParseError> {
         let kanata = b"Kanata\t";
         if !self.rest().starts_with(kanata) {
-            return Err(ParseError::InvalidLogKind); // Maybe add a specific Header error?
+            return Err(ParseError::InvalidHeader);
         }
         self.advance(kanata.len());
         let version = self.parse_u8()?; // version
