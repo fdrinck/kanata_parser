@@ -371,7 +371,7 @@ impl<'a> Iterator for Parser<'a> {
     type Item = Result<Command, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(b) = self.current() {
+        if let Some(b) = self.current() {
             let res = match b {
                 b'K' => self.parse_header(),
                 b'C' => self.parse_c(),
@@ -381,18 +381,12 @@ impl<'a> Iterator for Parser<'a> {
                 b'E' => self.parse_pipeline(false),
                 b'R' => self.parse_r(),
                 b'W' => self.parse_w(),
-                b'\n' => {
-                    self.bump();
-                    continue;
-                }
-                _ => {
-                    self.skip_line();
-                    continue;
-                }
+                _ => Err(self.error(ParseErrorKind::UnexpectedCharacter)),
             };
-            return Some(res);
+            Some(res)
+        } else {
+            None
         }
-        None
     }
 }
 
