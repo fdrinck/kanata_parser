@@ -1,4 +1,4 @@
-use memchr::{memchr, memchr2};
+use memchr::memchr2;
 use std::convert::TryFrom;
 
 #[derive(Debug)]
@@ -8,6 +8,7 @@ pub enum ParseErrorKind {
     InvalidRetireKind,
     InvalidDepKind,
     ExpectedValue,
+    ExpectedText,
     UnexpectedCharacter,
     UnexpectedEof,
 }
@@ -162,24 +163,18 @@ impl<'a> Parser<'a> {
         self.rest().first().copied()
     }
 
-    fn skip_line(&mut self) {
-        let rest = self.rest();
-        if rest.is_empty() {
-            return;
+    fn spaces(&mut self) {
+        while let Some(b' ' | b'\t') = self.current() {
+            self.bump();
         }
+    }
 
-        // Find first line-ending byte
-        if let Some(i) = memchr2(b'\n', b'\r', rest) {
-            let end = i + 1;
-            // Handle Windows CRLF
-            if rest[i] == b'\r' && end < rest.len() && rest[end] == b'\n' {
-                self.advance(2);
-            } else {
-                self.advance(1);
+    fn lineend(&mut self) {
+        if let Some(b'\r' | b'\n') = self.current() {
+            self.bump();
+            if let Some(b'\n') = self.current() {
+                self.bump();
             }
-        } else {
-            // no line ending -> consume the rest
-            self.pos = self.input.len();
         }
     }
 
@@ -256,12 +251,21 @@ impl<'a> Parser<'a> {
         self.parse_u64().map(|v| v as u8)
     }
 
-    fn parse_text(&mut self) -> StrRef {
-        let start = self.pos as u64;
-        let len = memchr(b'\n', self.rest()).unwrap_or(self.rest().len());
-        let res = StrRef::new(start, len as u16);
+    fn text(&mut self) -> Result<StrRef, ParseError> {
+        let start = self.pos;
+        let rest = self.rest();
+
+        let len = match memchr2(b'\r', b'\n', rest) {
+            Some(i) => i,
+            None => rest.len(),
+        };
+
+        if len == 0 {
+            return Err(self.error(ParseErrorKind::ExpectedText));
+        }
+
         self.advance(len);
-        res
+        Ok(StrRef::new(start as u64, len as u16))
     }
 
     fn parse_header(&mut self) -> Result<Command, ParseError> {
@@ -271,7 +275,8 @@ impl<'a> Parser<'a> {
         }
         self.advance(kanata.len());
         let version = self.parse_u8()?; // version
-        self.skip_line();
+        self.spaces();
+        self.lineend();
         Ok(Command::Kanata { version })
     }
 
@@ -280,7 +285,8 @@ impl<'a> Parser<'a> {
         let abs = self.eat(b'=');
         self.tab()?;
         let value = self.parse_i32()?;
-        self.skip_line();
+        self.spaces();
+        self.lineend();
         Ok(Command::Cycle { abs, value })
     }
 
@@ -292,7 +298,8 @@ impl<'a> Parser<'a> {
         let id_sim = self.parse_u8()?;
         self.tab()?;
         let thread = self.parse_u8()?;
-        self.skip_line();
+        self.spaces();
+        self.lineend();
         Ok(Command::Instruction {
             id_in_file: id_file,
             id_in_sim: id_sim,
@@ -307,8 +314,8 @@ impl<'a> Parser<'a> {
         self.tab()?;
         let kind = LogKind::try_from(self.single_digit()?).map_err(|e| self.error(e))?;
         self.tab()?;
-        let text = self.parse_text();
-        self.skip_line();
+        let text = self.text()?;
+        self.lineend();
         Ok(Command::Log { id, kind, text })
     }
 
@@ -319,8 +326,8 @@ impl<'a> Parser<'a> {
         self.tab()?;
         let lane = self.parse_u8()?;
         self.tab()?;
-        let name = self.parse_text();
-        self.skip_line();
+        let name = self.text()?;
+        self.lineend();
         Ok(Command::Pipeline {
             start,
             id,
@@ -337,7 +344,8 @@ impl<'a> Parser<'a> {
         let retire = self.parse_u8()?;
         self.tab()?;
         let kind = RetireKind::try_from(self.single_digit()?).map_err(|e| self.error(e))?;
-        self.skip_line();
+        self.spaces();
+        self.lineend();
         Ok(Command::Retire { id, retire, kind })
     }
 
@@ -349,7 +357,8 @@ impl<'a> Parser<'a> {
         let p = self.parse_u8()?;
         self.tab()?;
         let kind = DepKind::try_from(self.single_digit()?).map_err(|e| self.error(e))?;
-        self.skip_line();
+        self.spaces();
+        self.lineend();
         Ok(Command::Dep {
             consumer_id: c,
             producer_id: p,
