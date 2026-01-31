@@ -2,7 +2,7 @@ use memchr::{memchr, memchr2};
 use std::convert::TryFrom;
 
 #[derive(Debug)]
-pub enum ParseError {
+pub enum ParseErrorKind {
     InvalidHeader,
     InvalidLogKind,
     InvalidRetireKind,
@@ -10,6 +10,12 @@ pub enum ParseError {
     ExpectedValue,
     UnexpectedCharacter,
     UnexpectedEof,
+}
+
+#[derive(Debug)]
+pub struct ParseError {
+    pub offset: usize,
+    pub kind: ParseErrorKind,
 }
 
 #[repr(u8)]
@@ -21,7 +27,7 @@ pub enum LogKind {
 }
 
 impl TryFrom<u8> for LogKind {
-    type Error = ParseError;
+    type Error = ParseErrorKind;
 
     #[inline]
     fn try_from(b: u8) -> Result<Self, Self::Error> {
@@ -29,7 +35,7 @@ impl TryFrom<u8> for LogKind {
             b'0' => Ok(LogKind::LeftPane),
             b'1' => Ok(LogKind::MouseOver),
             b'2' => Ok(LogKind::Other),
-            _ => Err(ParseError::InvalidLogKind),
+            _ => Err(ParseErrorKind::InvalidLogKind),
         }
     }
 }
@@ -42,14 +48,14 @@ pub enum RetireKind {
 }
 
 impl TryFrom<u8> for RetireKind {
-    type Error = ParseError;
+    type Error = ParseErrorKind;
 
     #[inline]
     fn try_from(b: u8) -> Result<Self, Self::Error> {
         match b {
             b'0' => Ok(RetireKind::Retire),
             b'1' => Ok(RetireKind::Flush),
-            _ => Err(ParseError::InvalidRetireKind),
+            _ => Err(ParseErrorKind::InvalidRetireKind),
         }
     }
 }
@@ -61,13 +67,13 @@ pub enum DepKind {
 }
 
 impl TryFrom<u8> for DepKind {
-    type Error = ParseError;
+    type Error = ParseErrorKind;
 
     #[inline]
     fn try_from(b: u8) -> Result<Self, Self::Error> {
         match b {
             b'0' => Ok(DepKind::WakeUp),
-            _ => Err(ParseError::InvalidDepKind),
+            _ => Err(ParseErrorKind::InvalidDepKind),
         }
     }
 }
@@ -144,6 +150,13 @@ impl<'a> Parser<'a> {
         &self.input[self.pos..]
     }
 
+    fn error(&self, kind: ParseErrorKind) -> ParseError {
+        ParseError {
+            offset: self.pos,
+            kind,
+        }
+    }
+
     #[inline]
     fn advance(&mut self, n: usize) {
         self.pos += n;
@@ -188,7 +201,7 @@ impl<'a> Parser<'a> {
             self.bump();
             Ok(())
         } else {
-            Err(ParseError::UnexpectedCharacter)
+            Err(self.error(ParseErrorKind::UnexpectedCharacter))
         }
     }
 
@@ -214,7 +227,7 @@ impl<'a> Parser<'a> {
             self.bump();
             Ok(actual)
         } else {
-            Err(ParseError::ExpectedValue)
+            Err(self.error(ParseErrorKind::ExpectedValue))
         }
     }
 
@@ -230,7 +243,7 @@ impl<'a> Parser<'a> {
             self.advance(i);
             Ok(v)
         } else {
-            Err(ParseError::ExpectedValue)
+            Err(self.error(ParseErrorKind::ExpectedValue))
         }
     }
 
@@ -246,7 +259,7 @@ impl<'a> Parser<'a> {
             let num = self.parse_u64()? as i32;
             if neg { Ok(-num) } else { Ok(num) }
         } else {
-            Err(ParseError::UnexpectedEof)
+            Err(self.error(ParseErrorKind::UnexpectedEof))
         }
     }
 
@@ -265,7 +278,7 @@ impl<'a> Parser<'a> {
     fn parse_header(&mut self) -> Result<Command, ParseError> {
         let kanata = b"Kanata\t";
         if !self.rest().starts_with(kanata) {
-            return Err(ParseError::InvalidHeader);
+            return Err(self.error(ParseErrorKind::InvalidHeader));
         }
         self.advance(kanata.len());
         let version = self.parse_u8()?; // version
@@ -303,7 +316,7 @@ impl<'a> Parser<'a> {
         self.tab()?;
         let id = self.parse_u8()?;
         self.tab()?;
-        let kind = LogKind::try_from(self.single_digit()?)?;
+        let kind = LogKind::try_from(self.single_digit()?).map_err(|e| self.error(e))?;
         self.tab()?;
         let text = self.parse_text();
         self.skip_line();
@@ -334,7 +347,7 @@ impl<'a> Parser<'a> {
         self.tab()?;
         let retire = self.parse_u8()?;
         self.tab()?;
-        let kind = RetireKind::try_from(self.single_digit()?)?;
+        let kind = RetireKind::try_from(self.single_digit()?).map_err(|e| self.error(e))?;
         self.skip_line();
         Ok(Command::Retire { id, retire, kind })
     }
@@ -346,7 +359,7 @@ impl<'a> Parser<'a> {
         self.tab()?;
         let p = self.parse_u8()?;
         self.tab()?;
-        let kind = DepKind::try_from(self.single_digit()?)?;
+        let kind = DepKind::try_from(self.single_digit()?).map_err(|e| self.error(e))?;
         self.skip_line();
         Ok(Command::Dep {
             consumer_id: c,
