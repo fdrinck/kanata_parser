@@ -6,6 +6,7 @@ pub enum ParseError {
     InvalidLogKind,
     InvalidRetireKind,
     InvalidDepKind,
+    ExpectedValue,
 }
 
 #[repr(u8)]
@@ -82,6 +83,7 @@ impl StrRef {
         self.0 >> 16
     }
 
+    #[allow(clippy::len_without_is_empty)]
     #[inline]
     pub fn len(self) -> u16 {
         self.0 as u16
@@ -178,7 +180,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_u64(&mut self) -> u64 {
+    fn parse_u64(&mut self) -> Result<u64, ParseError> {
         let mut v = 0u64;
         let r = self.rest();
         let mut i = 0;
@@ -186,12 +188,29 @@ impl<'a> Parser<'a> {
             v = v * 10 + (r[i] - b'0') as u64;
             i += 1;
         }
-        self.consume(i);
-        v
+        if i > 0 {
+            self.consume(i);
+            Ok(v)
+        } else {
+            Err(ParseError::ExpectedValue)
+        }
     }
 
-    fn parse_u8(&mut self) -> u8 {
-        self.parse_u64() as u8
+    fn parse_i32(&mut self) -> Result<i32, ParseError> {
+        let c = self.current();
+        let mut neg = false;
+        if c == b'-' {
+            neg = true;
+            self.bump();
+        } else if c == b'+' {
+            self.bump();
+        }
+        let num = self.parse_u64()? as i32;
+        if neg { Ok(-num) } else { Ok(num) }
+    }
+
+    fn parse_u8(&mut self) -> Result<u8, ParseError> {
+        self.parse_u64().map(|v| v as u8)
     }
 
     fn parse_text(&mut self) -> StrRef {
@@ -208,7 +227,7 @@ impl<'a> Parser<'a> {
             return Err(ParseError::InvalidLogKind); // Maybe add a specific Header error?
         }
         self.consume(kanata.len());
-        let version = self.parse_u8(); // version
+        let version = self.parse_u8().unwrap(); // version
         self.skip_line();
         Ok(Command::Kanata { version })
     }
@@ -220,7 +239,7 @@ impl<'a> Parser<'a> {
             self.bump();
         }
         self.next_tab();
-        let value = self.parse_u64() as i32;
+        let value = self.parse_i32().unwrap();
         self.skip_line();
         Ok(Command::Cycle { abs, value })
     }
@@ -228,11 +247,11 @@ impl<'a> Parser<'a> {
     fn parse_i(&mut self) -> Result<Command, ParseError> {
         self.bump(); // I
         self.next_tab();
-        let id_file = self.parse_u8();
+        let id_file = self.parse_u8().unwrap();
         self.next_tab();
-        let id_sim = self.parse_u8();
+        let id_sim = self.parse_u8().unwrap();
         self.next_tab();
-        let thread = self.parse_u8();
+        let thread = self.parse_u8().unwrap();
         self.skip_line();
         Ok(Command::Instruction {
             id_in_file: id_file,
@@ -244,7 +263,7 @@ impl<'a> Parser<'a> {
     fn parse_l(&mut self) -> Result<Command, ParseError> {
         self.bump(); // L
         self.next_tab();
-        let id = self.parse_u8();
+        let id = self.parse_u8().unwrap();
         self.next_tab();
         let kind = LogKind::try_from(self.current())?;
         self.bump();
@@ -257,9 +276,9 @@ impl<'a> Parser<'a> {
     fn parse_s(&mut self) -> Result<Command, ParseError> {
         self.bump(); // S
         self.next_tab();
-        let id = self.parse_u8();
+        let id = self.parse_u8().unwrap();
         self.next_tab();
-        let lane = self.parse_u8();
+        let lane = self.parse_u8().unwrap();
         self.next_tab();
         let name = self.parse_text();
         self.skip_line();
@@ -274,9 +293,9 @@ impl<'a> Parser<'a> {
     fn parse_e(&mut self) -> Result<Command, ParseError> {
         self.bump(); // E
         self.next_tab();
-        let id = self.parse_u8();
+        let id = self.parse_u8().unwrap();
         self.next_tab();
-        let lane = self.parse_u8();
+        let lane = self.parse_u8().unwrap();
         self.next_tab();
         let name = self.parse_text();
         self.skip_line();
@@ -291,9 +310,9 @@ impl<'a> Parser<'a> {
     fn parse_r(&mut self) -> Result<Command, ParseError> {
         self.bump(); // R
         self.next_tab();
-        let id = self.parse_u8();
+        let id = self.parse_u8().unwrap();
         self.next_tab();
-        let retire = self.parse_u8();
+        let retire = self.parse_u8().unwrap();
         self.next_tab();
         let kind = RetireKind::try_from(self.current())?;
         self.bump();
@@ -304,9 +323,9 @@ impl<'a> Parser<'a> {
     fn parse_w(&mut self) -> Result<Command, ParseError> {
         self.bump(); // W
         self.next_tab();
-        let c = self.parse_u8();
+        let c = self.parse_u8().unwrap();
         self.next_tab();
-        let p = self.parse_u8();
+        let p = self.parse_u8().unwrap();
         self.next_tab();
         let kind = DepKind::try_from(self.current())?;
         self.bump();
