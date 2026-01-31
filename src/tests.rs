@@ -1,4 +1,3 @@
-
 use super::*;
 use glob::glob;
 use insta::assert_snapshot;

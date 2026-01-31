@@ -8,6 +8,7 @@ pub enum ParseErrorKind {
     InvalidRetireKind,
     InvalidDepKind,
     ExpectedValue,
+    ValueTooBig,
     ExpectedText,
     UnexpectedCharacter,
     UnexpectedEof,
@@ -96,36 +97,36 @@ impl StrRef {
 
 pub enum Command {
     Kanata {
-        version: u8,
+        version: u32,
     },
     Cycle {
         abs: bool,
         value: i32,
     },
     Instruction {
-        id_in_file: u8,
-        id_in_sim: u8,
-        thread_id: u8,
+        id_in_file: u32,
+        id_in_sim: u32,
+        thread_id: u32,
     },
     Log {
-        id: u8,
+        id: u32,
         kind: LogKind,
         text: StrRef,
     },
     Pipeline {
         start: bool,
-        id: u8,
-        lane_id: u8,
+        id: u32,
+        lane_id: u32,
         name: StrRef,
     },
     Retire {
-        id: u8,
-        retire: u8,
+        id: u32,
+        retire: u32,
         kind: RetireKind,
     },
     Dep {
-        consumer_id: u8,
-        producer_id: u8,
+        consumer_id: u32,
+        producer_id: u32,
         kind: DepKind,
     },
 }
@@ -240,15 +241,17 @@ impl<'a> Parser<'a> {
             } else if c == b'+' {
                 self.bump();
             }
-            let num = self.parse_u64()? as i32;
+            let num = i32::try_from(self.parse_u64()?)
+                .map_err(|_| self.error(ParseErrorKind::ValueTooBig))?;
             if neg { Ok(-num) } else { Ok(num) }
         } else {
             Err(self.error(ParseErrorKind::UnexpectedEof))
         }
     }
 
-    fn parse_u8(&mut self) -> Result<u8, ParseError> {
-        self.parse_u64().map(|v| v as u8)
+    fn parse_u32(&mut self) -> Result<u32, ParseError> {
+        let v = self.parse_u64()?;
+        u32::try_from(v).map_err(|_| self.error(ParseErrorKind::ValueTooBig))
     }
 
     fn text(&mut self) -> Result<StrRef, ParseError> {
@@ -274,7 +277,7 @@ impl<'a> Parser<'a> {
             return Err(self.error(ParseErrorKind::InvalidHeader));
         }
         self.advance(kanata.len());
-        let version = self.parse_u8()?; // version
+        let version = self.parse_u32()?; // version
         self.spaces();
         self.lineend();
         Ok(Command::Kanata { version })
@@ -293,11 +296,11 @@ impl<'a> Parser<'a> {
     fn parse_i(&mut self) -> Result<Command, ParseError> {
         self.bump(); // I
         self.tab()?;
-        let id_file = self.parse_u8()?;
+        let id_file = self.parse_u32()?;
         self.tab()?;
-        let id_sim = self.parse_u8()?;
+        let id_sim = self.parse_u32()?;
         self.tab()?;
-        let thread = self.parse_u8()?;
+        let thread = self.parse_u32()?;
         self.spaces();
         self.lineend();
         Ok(Command::Instruction {
@@ -310,7 +313,7 @@ impl<'a> Parser<'a> {
     fn parse_l(&mut self) -> Result<Command, ParseError> {
         self.bump(); // L
         self.tab()?;
-        let id = self.parse_u8()?;
+        let id = self.parse_u32()?;
         self.tab()?;
         let kind = LogKind::try_from(self.single_digit()?).map_err(|e| self.error(e))?;
         self.tab()?;
@@ -322,9 +325,9 @@ impl<'a> Parser<'a> {
     fn parse_pipeline(&mut self, start: bool) -> Result<Command, ParseError> {
         self.bump(); // S or E
         self.tab()?;
-        let id = self.parse_u8()?;
+        let id = self.parse_u32()?;
         self.tab()?;
-        let lane = self.parse_u8()?;
+        let lane = self.parse_u32()?;
         self.tab()?;
         let name = self.text()?;
         self.lineend();
@@ -339,9 +342,9 @@ impl<'a> Parser<'a> {
     fn parse_r(&mut self) -> Result<Command, ParseError> {
         self.bump(); // R
         self.tab()?;
-        let id = self.parse_u8()?;
+        let id = self.parse_u32()?;
         self.tab()?;
-        let retire = self.parse_u8()?;
+        let retire = self.parse_u32()?;
         self.tab()?;
         let kind = RetireKind::try_from(self.single_digit()?).map_err(|e| self.error(e))?;
         self.spaces();
@@ -352,9 +355,9 @@ impl<'a> Parser<'a> {
     fn parse_w(&mut self) -> Result<Command, ParseError> {
         self.bump(); // W
         self.tab()?;
-        let c = self.parse_u8()?;
+        let c = self.parse_u32()?;
         self.tab()?;
-        let p = self.parse_u8()?;
+        let p = self.parse_u32()?;
         self.tab()?;
         let kind = DepKind::try_from(self.single_digit()?).map_err(|e| self.error(e))?;
         self.spaces();
