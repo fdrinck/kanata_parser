@@ -278,8 +278,8 @@ impl<'a> Parser<'a> {
         Ok(Command::Log { id, kind, text })
     }
 
-    fn parse_s(&mut self) -> Result<Command, ParseError> {
-        self.bump(); // S
+    fn parse_pipeline(&mut self, start: bool) -> Result<Command, ParseError> {
+        self.bump(); // S or E
         self.next_tab();
         let id = self.parse_u8().unwrap();
         self.next_tab();
@@ -288,24 +288,7 @@ impl<'a> Parser<'a> {
         let name = self.parse_text();
         self.skip_line();
         Ok(Command::Pipeline {
-            start: true,
-            id,
-            lane_id: lane,
-            name,
-        })
-    }
-
-    fn parse_e(&mut self) -> Result<Command, ParseError> {
-        self.bump(); // E
-        self.next_tab();
-        let id = self.parse_u8().unwrap();
-        self.next_tab();
-        let lane = self.parse_u8().unwrap();
-        self.next_tab();
-        let name = self.parse_text();
-        self.skip_line();
-        Ok(Command::Pipeline {
-            start: false,
+            start,
             id,
             lane_id: lane,
             name,
@@ -354,8 +337,8 @@ impl<'a> Iterator for Parser<'a> {
                 b'C' => self.parse_c(),
                 b'I' => self.parse_i(),
                 b'L' => self.parse_l(),
-                b'S' => self.parse_s(),
-                b'E' => self.parse_e(),
+                b'S' => self.parse_pipeline(true),
+                b'E' => self.parse_pipeline(false),
                 b'R' => self.parse_r(),
                 b'W' => self.parse_w(),
                 b'\n' => {
