@@ -7,6 +7,8 @@ pub enum ParseError {
     InvalidRetireKind,
     InvalidDepKind,
     ExpectedValue,
+    UnexpectedCharacter,
+    UnexpectedEof,
 }
 
 #[repr(u8)]
@@ -142,18 +144,18 @@ impl<'a> Parser<'a> {
     }
 
     #[inline]
-    fn consume(&mut self, n: usize) {
+    fn advance(&mut self, n: usize) {
         self.pos += n;
     }
 
     #[inline]
     fn bump(&mut self) {
-        self.consume(1);
+        self.advance(1);
     }
 
     #[inline]
-    fn current(&mut self) -> u8 {
-        self.input[self.pos]
+    fn current(&mut self) -> Option<u8> {
+        self.rest().first().copied()
     }
 
     #[inline]
@@ -168,9 +170,9 @@ impl<'a> Parser<'a> {
             let end = i + 1;
             // Handle Windows CRLF
             if rest[i] == b'\r' && end < rest.len() && rest[end] == b'\n' {
-                self.consume(2);
+                self.advance(2);
             } else {
-                self.consume(1);
+                self.advance(1);
             }
         } else {
             // no line ending -> consume the rest
@@ -178,10 +180,40 @@ impl<'a> Parser<'a> {
         }
     }
 
-    #[inline]
-    fn next_tab(&mut self) {
-        if let Some(i) = memchr(b'\t', self.rest()) {
-            self.consume(i + 1);
+    fn expect(&mut self, expected: u8) -> Result<(), ParseError> {
+        if let Some(actual) = self.current()
+            && actual == expected
+        {
+            self.bump();
+            Ok(())
+        } else {
+            Err(ParseError::UnexpectedCharacter)
+        }
+    }
+
+    fn eat(&mut self, expected: u8) -> bool {
+        if let Some(actual) = self.current()
+            && actual == expected
+        {
+            self.bump();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn tab(&mut self) -> Result<(), ParseError> {
+        self.expect(b'\t')
+    }
+
+    fn single_digit(&mut self) -> Result<u8, ParseError> {
+        if let Some(actual) = self.current()
+            && actual.is_ascii_digit()
+        {
+            self.bump();
+            Ok(actual)
+        } else {
+            Err(ParseError::ExpectedValue)
         }
     }
 
@@ -194,7 +226,7 @@ impl<'a> Parser<'a> {
             i += 1;
         }
         if i > 0 {
-            self.consume(i);
+            self.advance(i);
             Ok(v)
         } else {
             Err(ParseError::ExpectedValue)
@@ -202,16 +234,19 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_i32(&mut self) -> Result<i32, ParseError> {
-        let c = self.current();
-        let mut neg = false;
-        if c == b'-' {
-            neg = true;
-            self.bump();
-        } else if c == b'+' {
-            self.bump();
+        if let Some(c) = self.current() {
+            let mut neg = false;
+            if c == b'-' {
+                neg = true;
+                self.bump();
+            } else if c == b'+' {
+                self.bump();
+            }
+            let num = self.parse_u64()? as i32;
+            if neg { Ok(-num) } else { Ok(num) }
+        } else {
+            Err(ParseError::UnexpectedEof)
         }
-        let num = self.parse_u64()? as i32;
-        if neg { Ok(-num) } else { Ok(num) }
     }
 
     fn parse_u8(&mut self) -> Result<u8, ParseError> {
@@ -222,7 +257,7 @@ impl<'a> Parser<'a> {
         let start = self.pos as u64;
         let len = memchr(b'\n', self.rest()).unwrap_or(self.rest().len());
         let res = StrRef::new(start, len as u16);
-        self.consume(len);
+        self.advance(len);
         res
     }
 
@@ -231,32 +266,29 @@ impl<'a> Parser<'a> {
         if !self.rest().starts_with(kanata) {
             return Err(ParseError::InvalidLogKind); // Maybe add a specific Header error?
         }
-        self.consume(kanata.len());
-        let version = self.parse_u8().unwrap(); // version
+        self.advance(kanata.len());
+        let version = self.parse_u8()?; // version
         self.skip_line();
         Ok(Command::Kanata { version })
     }
 
     fn parse_c(&mut self) -> Result<Command, ParseError> {
         self.bump(); // C
-        let abs = self.current() == b'=';
-        if abs {
-            self.bump();
-        }
-        self.next_tab();
-        let value = self.parse_i32().unwrap();
+        let abs = self.eat(b'=');
+        self.tab()?;
+        let value = self.parse_i32()?;
         self.skip_line();
         Ok(Command::Cycle { abs, value })
     }
 
     fn parse_i(&mut self) -> Result<Command, ParseError> {
         self.bump(); // I
-        self.next_tab();
-        let id_file = self.parse_u8().unwrap();
-        self.next_tab();
-        let id_sim = self.parse_u8().unwrap();
-        self.next_tab();
-        let thread = self.parse_u8().unwrap();
+        self.tab()?;
+        let id_file = self.parse_u8()?;
+        self.tab()?;
+        let id_sim = self.parse_u8()?;
+        self.tab()?;
+        let thread = self.parse_u8()?;
         self.skip_line();
         Ok(Command::Instruction {
             id_in_file: id_file,
@@ -267,12 +299,11 @@ impl<'a> Parser<'a> {
 
     fn parse_l(&mut self) -> Result<Command, ParseError> {
         self.bump(); // L
-        self.next_tab();
-        let id = self.parse_u8().unwrap();
-        self.next_tab();
-        let kind = LogKind::try_from(self.current())?;
-        self.bump();
-        self.next_tab();
+        self.tab()?;
+        let id = self.parse_u8()?;
+        self.tab()?;
+        let kind = LogKind::try_from(self.single_digit()?)?;
+        self.tab()?;
         let text = self.parse_text();
         self.skip_line();
         Ok(Command::Log { id, kind, text })
@@ -280,11 +311,11 @@ impl<'a> Parser<'a> {
 
     fn parse_pipeline(&mut self, start: bool) -> Result<Command, ParseError> {
         self.bump(); // S or E
-        self.next_tab();
-        let id = self.parse_u8().unwrap();
-        self.next_tab();
-        let lane = self.parse_u8().unwrap();
-        self.next_tab();
+        self.tab()?;
+        let id = self.parse_u8()?;
+        self.tab()?;
+        let lane = self.parse_u8()?;
+        self.tab()?;
         let name = self.parse_text();
         self.skip_line();
         Ok(Command::Pipeline {
@@ -297,26 +328,24 @@ impl<'a> Parser<'a> {
 
     fn parse_r(&mut self) -> Result<Command, ParseError> {
         self.bump(); // R
-        self.next_tab();
-        let id = self.parse_u8().unwrap();
-        self.next_tab();
-        let retire = self.parse_u8().unwrap();
-        self.next_tab();
-        let kind = RetireKind::try_from(self.current())?;
-        self.bump();
+        self.tab()?;
+        let id = self.parse_u8()?;
+        self.tab()?;
+        let retire = self.parse_u8()?;
+        self.tab()?;
+        let kind = RetireKind::try_from(self.single_digit()?)?;
         self.skip_line();
         Ok(Command::Retire { id, retire, kind })
     }
 
     fn parse_w(&mut self) -> Result<Command, ParseError> {
         self.bump(); // W
-        self.next_tab();
-        let c = self.parse_u8().unwrap();
-        self.next_tab();
-        let p = self.parse_u8().unwrap();
-        self.next_tab();
-        let kind = DepKind::try_from(self.current())?;
-        self.bump();
+        self.tab()?;
+        let c = self.parse_u8()?;
+        self.tab()?;
+        let p = self.parse_u8()?;
+        self.tab()?;
+        let kind = DepKind::try_from(self.single_digit()?)?;
         self.skip_line();
         Ok(Command::Dep {
             consumer_id: c,
@@ -330,8 +359,7 @@ impl<'a> Iterator for Parser<'a> {
     type Item = Result<Command, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.pos < self.input.len() {
-            let b = self.current();
+        while let Some(b) = self.current() {
             let res = match b {
                 b'K' => self.parse_header(),
                 b'C' => self.parse_c(),
