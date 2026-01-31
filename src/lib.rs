@@ -161,9 +161,9 @@ impl<'a> Parser<'a> {
             let end = i + 1;
             // Handle Windows CRLF
             if rest[i] == b'\r' && end < rest.len() && rest[end] == b'\n' {
-                self.pos += 2; // consume both \r\n
+                self.consume(2);
             } else {
-                self.pos += 1; // consume single \r or \n
+                self.consume(1);
             }
         } else {
             // no line ending -> consume the rest
@@ -247,7 +247,7 @@ impl<'a> Parser<'a> {
         let id = self.parse_u8();
         self.next_tab();
         let kind = LogKind::try_from(self.current())?;
-        self.pos += 1;
+        self.bump();
         self.next_tab();
         let text = self.parse_text();
         self.skip_line();
@@ -296,7 +296,7 @@ impl<'a> Parser<'a> {
         let retire = self.parse_u8();
         self.next_tab();
         let kind = RetireKind::try_from(self.current())?;
-        self.pos += 1;
+        self.bump();
         self.skip_line();
         Ok(Command::Retire { id, retire, kind })
     }
@@ -309,7 +309,7 @@ impl<'a> Parser<'a> {
         let p = self.parse_u8();
         self.next_tab();
         let kind = DepKind::try_from(self.current())?;
-        self.pos += 1;
+        self.bump();
         self.skip_line();
         Ok(Command::Dep {
             consumer_id: c,
@@ -320,7 +320,7 @@ impl<'a> Parser<'a> {
 
     #[inline]
     fn bump(&mut self) {
-        self.pos += 1;
+        self.consume(1);
     }
 }
 
