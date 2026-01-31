@@ -173,7 +173,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn next_tab(&mut self) {
         if let Some(i) = memchr(b'\t', self.rest()) {
             self.consume(i + 1);
