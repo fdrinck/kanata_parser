@@ -4,7 +4,7 @@ use std::fs;
 use std::hint::black_box;
 
 fn parse_streaming_benchmark_small(c: &mut Criterion) {
-    let input = fs::read("testinput/kanata-sample-1.log").expect("failed to read sample.log");
+    let input = fs::read("testinput/kanata-sample-1.log").unwrap();
 
     c.bench_function("parse/small", |b| {
         b.iter(|| {
@@ -18,7 +18,7 @@ fn parse_streaming_benchmark_small(c: &mut Criterion) {
 }
 
 fn parse_streaming_benchmark_big(c: &mut Criterion) {
-    let input = fs::read("testinput/kanata-sample-2.log").expect("failed to read sample.log");
+    let input = fs::read("testinput/kanata-sample-2.log").unwrap();
 
     c.bench_function("parse/big", |b| {
         b.iter(|| {
