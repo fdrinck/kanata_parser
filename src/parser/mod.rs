@@ -6,6 +6,7 @@ pub enum ParseErrorKind {
     InvalidLogKind,
     InvalidRetireKind,
     InvalidDepKind,
+    TextTooLong,
     ExpectedValue,
     ValueTooBig,
     ExpectedText,

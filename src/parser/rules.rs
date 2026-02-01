@@ -107,8 +107,10 @@ impl<'a> Parser<'a> {
             return Err(self.error(ParseErrorKind::ExpectedText));
         }
 
+        let text_len = u16::try_from(len).map_err(|_| self.error(ParseErrorKind::TextTooLong))?;
         self.advance(len);
-        Ok(StrRef::new(start as u64, len as u16))
+
+        Ok(StrRef::new(start as u64, text_len))
     }
 
     pub(super) fn parse_header(&mut self) -> Result<Command, ParseError> {
