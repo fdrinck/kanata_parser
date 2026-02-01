@@ -115,7 +115,7 @@ impl<'a> PrettyPrinter<'a> {
 fn parse_and_pretty_print(input: &[u8]) -> Result<String, ParseError> {
     let parser = Parser::new(input);
     let mut pp = PrettyPrinter::new(input);
-    for cmd in parser {
+    for (_, cmd) in parser {
         let cmd = cmd?;
         pp.print(cmd);
     }

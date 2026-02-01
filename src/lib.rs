@@ -141,19 +141,23 @@ impl<'a> Parser<'a> {
         Self { input, pos: 0 }
     }
 
+    fn advance(&mut self, n: usize) {
+        self.pos += n;
+    }
+
+    fn get_offset(&self) -> usize {
+        self.pos
+    }
+
     fn rest(&self) -> &'a [u8] {
-        &self.input[self.pos..]
+        &self.input[self.get_offset()..]
     }
 
     fn error(&self, kind: ParseErrorKind) -> ParseError {
         ParseError {
-            offset: self.pos,
+            offset: self.get_offset(),
             kind,
         }
-    }
-
-    fn advance(&mut self, n: usize) {
-        self.pos += n;
     }
 
     fn bump(&mut self) {
@@ -255,7 +259,7 @@ impl<'a> Parser<'a> {
     }
 
     fn text(&mut self) -> Result<StrRef, ParseError> {
-        let start = self.pos;
+        let start = self.get_offset();
         let rest = self.rest();
 
         let len = match memchr2(b'\r', b'\n', rest) {
@@ -371,9 +375,10 @@ impl<'a> Parser<'a> {
 }
 
 impl<'a> Iterator for Parser<'a> {
-    type Item = Result<Command, ParseError>;
+    type Item = (usize, Result<Command, ParseError>);
 
     fn next(&mut self) -> Option<Self::Item> {
+        let offset = self.get_offset();
         if let Some(b) = self.current() {
             let res = match b {
                 b'K' => self.parse_header(),
@@ -386,7 +391,7 @@ impl<'a> Iterator for Parser<'a> {
                 b'W' => self.parse_w(),
                 _ => Err(self.error(ParseErrorKind::UnexpectedCharacter)),
             };
-            Some(res)
+            Some((offset, res))
         } else {
             None
         }

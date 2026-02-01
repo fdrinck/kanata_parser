@@ -11,7 +11,7 @@ fn parse_streaming_benchmark_small(c: &mut Criterion) {
             let mut parser = Parser::new(black_box(&input));
 
             for cmd in &mut parser {
-                black_box(cmd).unwrap();
+                black_box(cmd).1.unwrap();
             }
         })
     });
@@ -25,7 +25,7 @@ fn parse_streaming_benchmark_big(c: &mut Criterion) {
             let mut parser = Parser::new(black_box(&input));
 
             for cmd in &mut parser {
-                black_box(cmd).unwrap();
+                black_box(cmd).1.unwrap();
             }
         })
     });
