@@ -1,4 +1,23 @@
-use crate::{Command, ParseError, ParseErrorKind};
+use crate::Command;
+
+#[derive(Debug)]
+pub enum ParseErrorKind {
+    InvalidHeader,
+    InvalidLogKind,
+    InvalidRetireKind,
+    InvalidDepKind,
+    ExpectedValue,
+    ValueTooBig,
+    ExpectedText,
+    UnexpectedCharacter,
+    UnexpectedEof,
+}
+
+#[derive(Debug)]
+pub struct ParseError {
+    pub offset: usize,
+    pub kind: ParseErrorKind,
+}
 
 mod primitive;
 pub use primitive::Parser;

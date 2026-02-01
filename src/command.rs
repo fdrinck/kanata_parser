@@ -1,21 +1,4 @@
-#[derive(Debug)]
-pub enum ParseErrorKind {
-    InvalidHeader,
-    InvalidLogKind,
-    InvalidRetireKind,
-    InvalidDepKind,
-    ExpectedValue,
-    ValueTooBig,
-    ExpectedText,
-    UnexpectedCharacter,
-    UnexpectedEof,
-}
-
-#[derive(Debug)]
-pub struct ParseError {
-    pub offset: usize,
-    pub kind: ParseErrorKind,
-}
+use crate::parser::ParseErrorKind;
 
 #[repr(u8)]
 #[derive(Copy, Clone)]

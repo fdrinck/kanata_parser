@@ -1,5 +1,5 @@
-use super::Parser;
-use crate::{Command, DepKind, LogKind, ParseError, ParseErrorKind, RetireKind, StrRef};
+use super::{ParseError, ParseErrorKind, Parser};
+use crate::{Command, DepKind, LogKind, RetireKind, StrRef};
 use memchr::memchr2;
 use std::convert::TryFrom;
 

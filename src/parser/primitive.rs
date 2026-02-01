@@ -1,4 +1,4 @@
-use crate::{ParseError, ParseErrorKind};
+use super::{ParseError, ParseErrorKind};
 
 pub struct Parser<'a> {
     input: &'a [u8],
